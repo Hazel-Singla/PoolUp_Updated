@@ -8,14 +8,22 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Verify transporter connection and only report failures.
+// Verify transporter connection and report both success and failures.
 transporter.verify((error) => {
     if (error) {
-        console.error('Email transporter error:', error.message);
+        console.error('❌ Email transporter error:', error.message);
+    } else {
+        console.log('✅ Email service ready');
     }
 });
 
 const sendAdminNotification = async (carpool) => {
+    if (!process.env.ADMIN_EMAIL) {
+        console.warn('⚠️ ADMIN_EMAIL not configured');
+        return false;
+    }
+
+    console.log(`📧 Sending admin notification to ${process.env.ADMIN_EMAIL}...`);
     const mailOptions = {
         from: `"PoolUp Notification" <${process.env.EMAIL_USER}>`,
         to: process.env.ADMIN_EMAIL,
@@ -32,15 +40,22 @@ const sendAdminNotification = async (carpool) => {
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Admin email sent successfully. Message ID: ${info.messageId}`);
         return true;
     } catch (err) {
-        console.error('Admin email error:', err.message);
+        console.error(`❌ Admin email failed:`, err.message);
         return false;
     }
 };
 
 const sendBookingConfirmation = async (userEmail, userName, carpool, seatsBooked) => {
+    if (!userEmail) {
+        console.warn('⚠️ No email address provided for booking confirmation');
+        return false;
+    }
+
+    console.log(`📧 Sending booking confirmation to ${userEmail}...`);
     const totalPrice = carpool.price * seatsBooked;
     
     const mailOptions = {
@@ -74,15 +89,22 @@ const sendBookingConfirmation = async (userEmail, userName, carpool, seatsBooked
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Booking email sent successfully to ${userEmail}. Message ID: ${info.messageId}`);
         return true;
     } catch (err) {
-        console.error('Booking email error:', err.message);
+        console.error(`❌ Booking email failed for ${userEmail}:`, err.message);
         return false;
     }
 };
 
 const sendDriverNotification = async (driverEmail, driverName, carpool, passengerName, seatsBooked) => {
+    if (!driverEmail) {
+        console.warn('⚠️ No email address provided for driver notification');
+        return false;
+    }
+
+    console.log(`📧 Sending driver notification to ${driverEmail}...`);
     const mailOptions = {
         from: `"PoolUp" <${process.env.EMAIL_USER}>`,
         to: driverEmail,
@@ -108,10 +130,11 @@ const sendDriverNotification = async (driverEmail, driverName, carpool, passenge
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Driver email sent successfully to ${driverEmail}. Message ID: ${info.messageId}`);
         return true;
     } catch (err) {
-        console.error('Driver notification email error:', err.message);
+        console.error(`❌ Driver email failed for ${driverEmail}:`, err.message);
         return false;
     }
 };

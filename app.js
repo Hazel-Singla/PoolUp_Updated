@@ -543,22 +543,24 @@ app.post('/carpools/:id/book', auth, async (req, res) => {
     // Send emails in the background (non-blocking)
     // Don't await these - let them complete asynchronously
     if (bookingUser?.email && fullCarpool) {
+      console.log(`🚀 Queueing booking confirmation email to ${bookingUser.email}`);
       sendBookingConfirmation(
         bookingUser.email,
         bookingUser.name,
         fullCarpool,
         seats
-      ).catch(err => console.error('Background email error:', err.message));
+      ).catch(err => console.error('❌ Background booking email error:', err.message));
     }
 
     if (driver?.email && fullCarpool && bookingUser?.name) {
+      console.log(`🚀 Queueing driver notification email to ${driver.email}`);
       sendDriverNotification(
         driver.email,
         driver.name,
         fullCarpool,
         bookingUser.name,
         seats
-      ).catch(err => console.error('Background email error:', err.message));
+      ).catch(err => console.error('❌ Background driver email error:', err.message));
     }
 
     await createNotification(
