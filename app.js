@@ -10,7 +10,6 @@ const methodOverride = require('method-override');
 const cookieParser = require('cookie-parser');
 const expressLayouts = require('express-ejs-layouts');
 const morgan = require('morgan');
-const redis = require('redis');
 
 // ================== CONFIG ==================
 dotenv.config();
@@ -51,115 +50,31 @@ if (!isTestEnv) {
     });
 }
 
-// ================== REDIS ==================
-const redisUrl = process.env.REDIS_URL;
-let redisReady = false;
-let publisher = null;
-let subscriber = null;
-let cacheClient = null;
-const subscribedRooms = new Set();
-let redisErrorLogged = false;
+// ================== CACHE (NO REDIS) ==================
 
-const redisClientOptions = redisUrl
-  ? {
-      url: redisUrl,
-      socket: {
-        connectTimeout: 3000,
-        reconnectStrategy: () => false,
-      },
-      disableOfflineQueue: true,
-    }
-  : null;
-
-if (!isTestEnv && redisUrl) {
-  publisher = redis.createClient(redisClientOptions);
-  subscriber = redis.createClient(redisClientOptions);
-  cacheClient = redis.createClient(redisClientOptions);
-
-  const handleRedisError = (clientName, err) => {
-    if (redisErrorLogged) return;
-    redisErrorLogged = true;
-    console.error(`Redis ${clientName} error:`, err.message);
-  };
-
-  publisher.on('error', err => handleRedisError('publisher', err));
-  subscriber.on('error', err => handleRedisError('subscriber', err));
-  cacheClient.on('error', err => handleRedisError('cache', err));
-
-  (async () => {
-    try {
-      await publisher.connect();
-      await subscriber.connect();
-      await cacheClient.connect();
-      redisReady = true;
-      console.log('✅ Redis Connected');
-    } catch (err) {
-      redisReady = false;
-      console.error('⚠️ Redis unavailable, continuing without Redis:', err.message);
-    }
-  })();
-} else if (!isTestEnv) {
-  console.log('ℹ️ REDIS_URL not set. Running without Redis.');
-}
-
+// No-op cache functions (Redis removed)
 async function redisGet(key) {
-  if (!redisReady || !cacheClient?.isOpen) return null;
-  try {
-    return await cacheClient.get(key);
-  } catch (err) {
-    console.error('⚠️ Redis get failed:', err.message);
-    return null;
-  }
+  return null; // No caching
 }
 
 async function redisSetEx(key, ttlSeconds, value) {
-  if (!redisReady || !cacheClient?.isOpen) return;
-  try {
-    await cacheClient.setEx(key, ttlSeconds, value);
-  } catch (err) {
-    console.error('⚠️ Redis setEx failed:', err.message);
-  }
+  // No-op
 }
 
 async function redisDel(key) {
-  if (!redisReady || !cacheClient?.isOpen) return;
-  try {
-    await cacheClient.del(key);
-  } catch (err) {
-    console.error('⚠️ Redis del failed:', err.message);
-  }
+  // No-op
 }
 
 async function subscribeRoom(room, onMessage) {
-  if (!redisReady || !subscriber?.isOpen || subscribedRooms.has(room)) return;
-  try {
-    await subscriber.subscribe(room, onMessage);
-    subscribedRooms.add(room);
-  } catch (err) {
-    console.error('⚠️ Redis subscribe failed:', err.message);
-  }
+  // No-op
 }
 
 async function unsubscribeRoom(room) {
-  if (!redisReady || !subscriber?.isOpen || !subscribedRooms.has(room)) return;
-  try {
-    await subscriber.unsubscribe(room);
-    subscribedRooms.delete(room);
-  } catch (err) {
-    console.error('⚠️ Redis unsubscribe failed:', err.message);
-  }
+  // No-op
 }
 
 async function publishRoom(room, payload) {
-  if (redisReady && publisher?.isOpen) {
-    try {
-      await publisher.publish(room, payload);
-      return;
-    } catch (err) {
-      console.error('⚠️ Redis publish failed, using local broadcast:', err.message);
-    }
-  }
-
+  // Use local broadcast only
   broadcast(room, payload);
 }
 
