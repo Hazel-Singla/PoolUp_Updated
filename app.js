@@ -551,10 +551,12 @@ app.post('/carpools', auth, async (req, res) => {
       waitlist: [],
     });
 
-    const adminMailSent = await sendAdminNotification(createdCarpool);
+    // Send admin notification in the background (non-blocking)
+    sendAdminNotification(createdCarpool)
+      .catch(err => console.error('Background admin email error:', err.message));
 
     await redisDel('carpools:list');
-    res.redirect(`/?mail=${adminMailSent ? 'offer_mail_sent' : 'offer_mail_failed'}`);
+    res.redirect('/?mail=offer_mail_sent');
   } catch (err) {
     console.error(err);
     res.status(500).send('Failed to create carpool');
@@ -623,39 +625,25 @@ app.post('/carpools/:id/book', auth, async (req, res) => {
 
     const driver = fullCarpool?.userId;
 
-    const emailResults = [];
-
+    // Send emails in the background (non-blocking)
+    // Don't await these - let them complete asynchronously
     if (bookingUser?.email && fullCarpool) {
-      const passengerMailSent = await sendBookingConfirmation(
+      sendBookingConfirmation(
         bookingUser.email,
         bookingUser.name,
         fullCarpool,
         seats
-      );
-      emailResults.push(passengerMailSent);
+      ).catch(err => console.error('Background email error:', err.message));
     }
 
     if (driver?.email && fullCarpool && bookingUser?.name) {
-      const driverMailSent = await sendDriverNotification(
+      sendDriverNotification(
         driver.email,
         driver.name,
         fullCarpool,
         bookingUser.name,
         seats
-      );
-      emailResults.push(driverMailSent);
-    }
-
-    const sentCount = emailResults.filter(Boolean).length;
-    const totalMailAttempts = emailResults.length;
-    let bookingMailStatus = 'booking_mail_skipped';
-
-    if (totalMailAttempts > 0 && sentCount === totalMailAttempts) {
-      bookingMailStatus = 'booking_mail_sent';
-    } else if (totalMailAttempts > 0 && sentCount > 0) {
-      bookingMailStatus = 'booking_mail_partial';
-    } else if (totalMailAttempts > 0) {
-      bookingMailStatus = 'booking_mail_failed';
+      ).catch(err => console.error('Background email error:', err.message));
     }
 
     await createNotification(
@@ -666,7 +654,7 @@ app.post('/carpools/:id/book', auth, async (req, res) => {
     );
 
     await redisDel('carpools:list');
-    res.redirect(`/?mail=${bookingMailStatus}`);
+    res.redirect('/?mail=booking_mail_sent');
   } catch (err) {
     console.error(err);
     res.status(500).send('Booking failed');
